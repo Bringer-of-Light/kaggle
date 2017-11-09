@@ -17,8 +17,8 @@ import xgboost as xgb
 
 #read input
 labeled_images = pd.read_csv('../input/train.csv')
-images = labeled_images.iloc[0:100,1:]
-labels = labeled_images.iloc[0:100,:1]
+images = labeled_images.iloc[0:,1:]
+labels = labeled_images.iloc[0:,:1]
 train_images, valid_images,train_labels, valid_labels = train_test_split(images, labels, train_size=0.95,random_state=0)
 train_images = images;
 train_labels = labels;
@@ -45,28 +45,17 @@ train_images.fillna(0,inplace=True)
 #model = GradientBoostingClassifier(n_estimators=100)
 model = xgb.XGBClassifier()
 
-#GridSearchCV
-#search = GridSearchCV(model,
-#                   {'max_depth': [2,4,6],
-#                    'n_estimators': [100,500,1000]},cv=2, verbose=1)
-#search.fit(train_images,train_labels.values.ravel())
-#print(search.best_score_)
-#print(search.best_params_)
-
-#记录训练时间
-#model.set_params(bestGrid)
-#tic = time.time()
-#model.fit(train_images, train_labels.values.ravel())
-#toc = time.time()
-#print('train time: {0:.0f} ms'.format(1000*(toc-tic)))
-#print(model.score(train_images,train_labels), model.score(valid_images,valid_labels))
-
 #搜索超参数
 grid = {'max_depth': [2,4,6],'n_estimators': [100,500,1000]}
 bestValidScore = 0
 for g in ParameterGrid(grid):
     model.set_params(**g)
+    
+    tic = time.clock()
     model.fit(train_images,train_labels.values.ravel())
+    toc = time.clock()
+    print('fit time: {0:.0f} seconds'.format(toc-tic))
+
     curValidScore = model.score(valid_images,valid_labels.values.ravel())
     print('current valid score:{0}, para:{1}'.format(curValidScore,g))
     # save if best
@@ -75,22 +64,22 @@ for g in ParameterGrid(grid):
         trainScore = model.score(train_images,train_labels.values.ravel())
         bestGrid = g
         #序列化model和bestGrid
-        f = open('XGBBestModel/XGBBestModel.txt','wb')
+        f = open('xgbBestModel.txt','wb')
         pickle.dump(model,f)
         f.close()
-        f = open('XGBBestModel/XGBBestModelPara.txt','wb')
+        f = open('xgbBestModelPara.txt','wb')
         pickle.dump(bestGrid,f)
         f.close()
-
+        
+                
 print('tarin score:{0}, best valid score:{1}'.format(trainScore, bestValidScore))
 print('best para:',bestGrid)
 
 #反序列化最好的model，用于预测
-f = open('XGBBestModel/XGBBestModel.txt','wb')
+f = open('xgbBestModel.txt','wb')
 model = pickle.load(f)
 f.close()
-resultName = 'results_XGB.csv'
-
+resultName = 'results_xgb.csv'
 
 #make predict
 test_data=pd.read_csv('../input/test.csv')

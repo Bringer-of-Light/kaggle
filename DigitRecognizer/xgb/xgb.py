@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import time
 import pickle
+from copy import deepcopy
 
 from sklearn.model_selection import train_test_split, GridSearchCV
 from sklearn.model_selection import KFold, cross_val_score, ParameterGrid
@@ -17,18 +18,13 @@ import xgboost as xgb
 
 #read input
 labeled_images = pd.read_csv('../input/train.csv')
-images = labeled_images.iloc[0:,1:]
-labels = labeled_images.iloc[0:,:1]
+images = labeled_images.iloc[:,1:]
+labels = labeled_images.iloc[:,:1]
+images[images>0]=1
+images.fillna(0,inplace=True)
 train_images, valid_images,train_labels, valid_labels = train_test_split(images, labels, train_size=0.95,random_state=0)
-train_images = images;
-train_labels = labels;
 
 #preprocess
-valid_images[valid_images>0]=1
-train_images[train_images>0]=1
-
-valid_images.fillna(0,inplace=True)
-train_images.fillna(0,inplace=True)
 
 ##plot
 #i=1
@@ -46,10 +42,10 @@ train_images.fillna(0,inplace=True)
 model = xgb.XGBClassifier()
 
 #搜索超参数
-grid = {'max_depth': [2,4,6],'n_estimators': [100,500,1000]}
+grid = {'max_depth': [2,4,6],'n_estimators': [250,500,750]}
 bestValidScore = 0
-for g in ParameterGrid(grid):
-    model.set_params(**g)
+for para in ParameterGrid(grid):
+    model.set_params(**para)
     
     tic = time.clock()
     model.fit(train_images,train_labels.values.ravel())
@@ -57,29 +53,30 @@ for g in ParameterGrid(grid):
     print('fit time: {0:.0f} seconds'.format(toc-tic))
 
     curValidScore = model.score(valid_images,valid_labels.values.ravel())
-    print('current valid score:{0}, para:{1}'.format(curValidScore,g))
+    curTrainScore = model.score(train_images,train_labels.values.ravel())
+    print('current valid score:{0},\n'
+          'current train score,{1},\n'
+          'para:{2}\n'.format(curValidScore,curTrainScore,para))
     # save if best
     if curValidScore > bestValidScore:
         bestValidScore = curValidScore
-        trainScore = model.score(train_images,train_labels.values.ravel())
-        bestGrid = g
-        #序列化model和bestGrid
-        f = open('xgbBestModel.txt','wb')
-        pickle.dump(model,f)
-        f.close()
-        f = open('xgbBestModelPara.txt','wb')
-        pickle.dump(bestGrid,f)
-        f.close()
+        trainScore = curTrainScore
+        bestPara = para
+        bestModel = deepcopy(model)
         
-                
+#reset model to bestModel
+model = bestModel
+       
 print('tarin score:{0}, best valid score:{1}'.format(trainScore, bestValidScore))
-print('best para:',bestGrid)
+print('best para:',bestPara)
 
-#反序列化最好的model，用于预测
+#序列化model和bestPara
 f = open('xgbBestModel.txt','wb')
-model = pickle.load(f)
+pickle.dump(model,f)
 f.close()
-resultName = 'results_xgb.csv'
+f = open('xgbBestModelPara.txt','wb')
+pickle.dump(bestPara,f)
+f.close()
 
 #make predict
 test_data=pd.read_csv('../input/test.csv')
@@ -92,4 +89,6 @@ df = pd.DataFrame(results)
 df.reset_index(inplace=True)
 df.columns=['ImageId','Label']
 df['ImageId']+=1
+
+resultName = 'results_xgb.csv'
 df.to_csv(resultName, header=True, index=False)

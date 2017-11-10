@@ -44,6 +44,9 @@ model = xgb.XGBClassifier()
 #搜索超参数
 grid = {'max_depth': [2,4,6],'n_estimators': [250,500,750]}
 bestValidScore = 0
+trainScore = 0
+bestModel = 0
+bestPara = 0
 for para in ParameterGrid(grid):
     model.set_params(**para)
     
@@ -63,20 +66,19 @@ for para in ParameterGrid(grid):
         trainScore = curTrainScore
         bestPara = para
         bestModel = deepcopy(model)
-        
+        # 序列化model和bestPara
+        f = open('xgbBestModel.txt', 'wb')
+        pickle.dump(bestModel, f)
+        f.close()
+        f = open('xgbBestModelPara.txt', 'wb')
+        pickle.dump(bestPara, f)
+        f.close()
+
 #reset model to bestModel
 model = bestModel
        
 print('tarin score:{0}, best valid score:{1}'.format(trainScore, bestValidScore))
 print('best para:',bestPara)
-
-#序列化model和bestPara
-f = open('xgbBestModel.txt','wb')
-pickle.dump(model,f)
-f.close()
-f = open('xgbBestModelPara.txt','wb')
-pickle.dump(bestPara,f)
-f.close()
 
 #make predict
 test_data=pd.read_csv('../input/test.csv')
